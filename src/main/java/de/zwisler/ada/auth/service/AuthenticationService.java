@@ -2,19 +2,29 @@ package de.zwisler.ada.auth.service;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.hash.Hashing;
+import de.zwisler.ada.auth.api.LoginParamsDto;
+import de.zwisler.ada.auth.api.dto.LoginRequestDto;
+import de.zwisler.ada.auth.api.dto.ResponseTypes;
 import de.zwisler.ada.auth.api.dto.TokenResponse;
-import de.zwisler.ada.auth.domain.AuthTokenPayload;
+import de.zwisler.ada.auth.domain.AccessTokenPayload;
+import de.zwisler.ada.auth.domain.AuthenticationRedirect;
+import de.zwisler.ada.auth.domain.AuthorizationCode;
 import de.zwisler.ada.auth.domain.IdTokenPayload;
 import de.zwisler.ada.auth.domain.RefreshTokenPayload;
+import de.zwisler.ada.auth.exceptions.CodeVerifierException;
 import de.zwisler.ada.auth.exceptions.UnauthorizedException;
 import de.zwisler.ada.auth.persistence.UserRepository;
 import de.zwisler.ada.auth.persistence.entity.UserEntity;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -26,36 +36,26 @@ public class AuthenticationService {
   final UserService userService;
   final CryptoService cryptoService;
   final TokenService tokenService;
-  Cache<String, UUID> authorizationCodes = CacheBuilder.newBuilder()
+  Cache<String, AuthorizationCode> authorizationCodes = CacheBuilder.newBuilder()
       .expireAfterWrite(1, TimeUnit.MINUTES)
-      .expireAfterAccess(0, TimeUnit.SECONDS)
+      .expireAfterAccess(1, TimeUnit.SECONDS)
       .build();
 
-  public Optional<String> getAuthorizationCode(String username, String password, String accessToken) {
-    UserEntity user = verifyAuthentication(username, password, accessToken);
-    if (Objects.nonNull(user)) {
-      String code = tokenService.createAuthorizationCode();
-      log.debug("Created authorization code for {}: {}", username, code);
-      authorizationCodes.put(code, user.getId());
-      return Optional.of(code);
-    }
-    return Optional.empty();
-  }
-
-  public Optional<TokenResponse> getAuthorizationTokens(String username, String password, String accessToken) {
-    UserEntity user = verifyAuthentication(username, password, accessToken);
-    if (Objects.nonNull(user)) {
-      log.debug("Generating tokens for {}", username);
-      return this.generateTokens(user.getId());
-    }
-    return Optional.empty();
+  public String createAuthorizationCode(
+      UserEntity user,
+      String nonce,
+      String codeChallenge) {
+    String code = tokenService.createAuthorizationCode();
+    log.debug("Created authorization code for {}: {}", user.getUsername(), code);
+    authorizationCodes.put(code, new AuthorizationCode(code, user.getId(), nonce, codeChallenge));
+    return code;
   }
 
   UserEntity verifyAuthentication(String username, String password, String accessToken) {
     if (Objects.nonNull(accessToken)) {
       log.debug("Verifying user {} by access_token", username);
       UUID userId = tokenService.validateAccessToken(accessToken);
-      return userRepository.findById(userId).orElseThrow();
+      return userRepository.findById(userId).orElseThrow(UnauthorizedException::new);
     }
     if (Objects.nonNull(username) && Objects.nonNull(password)) {
       log.debug("Verifying user {} by password", username);
@@ -67,28 +67,65 @@ public class AuthenticationService {
     throw new UnauthorizedException();
   }
 
-  public Optional<TokenResponse> authenticateWithCode(String code) {
-    UUID userId = authorizationCodes.getIfPresent(code);
-    if (Objects.nonNull(userId)) {
-      return generateTokens(userId);
+  public Optional<TokenResponse> authenticateWithCode(String code, String codeVerifier) {
+    AuthorizationCode user = authorizationCodes.getIfPresent(code);
+    log.debug("Authenticate with code {}", code);
+    if (Objects.nonNull(user)) {
+      log.debug("Generating access token for {}", user.userId());
+      authorizationCodes.invalidate(code);
+      String calcChallenge = Base64.getUrlEncoder().encodeToString(
+          Hashing.sha256().hashString(codeVerifier, StandardCharsets.UTF_8).asBytes()
+      );
+      log.debug("{} {}", codeVerifier, calcChallenge);
+      if (user.codeChallenge().equals(calcChallenge)) {
+        throw new CodeVerifierException();
+      }
+      return generateTokens(user.userId(), user.nonce());
     }
     return Optional.empty();
   }
 
 
   public Optional<TokenResponse> authenticateWithRefreshToken(String refreshToken) {
-    UUID id = tokenService.validateRefreshToken(refreshToken);
-    return generateTokens(id);
+    Pair<UUID, String> id = tokenService.validateRefreshToken(refreshToken);
+    return generateTokens(id.getFirst(), id.getSecond());
   }
 
 
-  private Optional<TokenResponse> generateTokens(UUID userId) {
+  private Optional<TokenResponse> generateTokens(UUID userId, String nonce) {
     return userService.getUserById(userId).map(userDto -> new TokenResponse(
-            tokenService.createAuthToken(AuthTokenPayload.from(userDto)),
-            tokenService.createRefreshToken(RefreshTokenPayload.from(userDto)),
-            tokenService.createIdToken(IdTokenPayload.from(userDto)),
+            tokenService.createAuthToken(AccessTokenPayload.from(userDto, nonce)),
+            tokenService.createRefreshToken(RefreshTokenPayload.from(userDto, nonce)),
+            tokenService.createIdToken(IdTokenPayload.from(userDto, nonce)),
             1000 * 60 * 60 * 5
         )
     );
+  }
+
+  public String authenticate(LoginParamsDto params, LoginRequestDto req, String authCookie) {
+    UserEntity user = verifyAuthentication(req.getUsername(), req.getPassword(), authCookie);
+
+    if (params.getResponseType().equals(ResponseTypes.CODE.toString())) {
+      String code = this.createAuthorizationCode(user, params.getNonce(), params.getCodeChallenge());
+      return AuthenticationRedirect.builder()
+          .redirectUri(params.getRedirectUri())
+          .state(params.getState())
+          .code(code)
+          .nonce(params.getNonce())
+          .build().createRedirect();
+    }
+
+    if (params.getResponseType().equals(ResponseTypes.TOKEN.toString())) {
+      TokenResponse tokenResponse = generateTokens(user.getId(), params.getNonce())
+          .orElseThrow(UnauthorizedException::new);
+      return AuthenticationRedirect.builder()
+          .redirectUri(params.getRedirectUri())
+          .state(params.getState())
+          .accessToken(tokenResponse.getAccessToken())
+          .refreshToken(tokenResponse.getRefreshToken())
+          .nonce(params.getNonce())
+          .build().createRedirect();
+    }
+    return "";
   }
 }

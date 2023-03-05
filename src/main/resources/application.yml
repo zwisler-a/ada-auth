@@ -1,6 +1,11 @@
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+logging:
+  level:
+    de:
+      zwisler:
+        ada: DEBUG
 spring:
   datasource:
     url: jdbc:h2:file:./db/userdb
@@ -17,3 +22,4 @@ auth:
   jwksEndpoint: ".well-known/jwks.json"
   allowedRedirects:
     - "http://localhost:3000/"
+    - "http://localhost:4200/"
