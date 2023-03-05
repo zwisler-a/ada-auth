@@ -16,10 +16,8 @@ server:
   error:
     include-stacktrace: never
 auth:
-  baseUrl: "http://localhost:8080/"
+  baseUrl: ${BASE_URL}
   authorizationEndpoint: "auth/login"
   tokenEndpoint: "auth/token"
   jwksEndpoint: ".well-known/jwks.json"
-  allowedRedirects:
-    - "http://localhost:3000/"
-    - "http://localhost:4200/"
+  allowedRedirects: ${ALLOWED_REDIRECTS}
