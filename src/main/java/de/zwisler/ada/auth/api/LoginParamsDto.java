@@ -1,9 +1,12 @@
 package de.zwisler.ada.auth.api;
 
-import de.zwisler.ada.auth.api.dto.ResponseTypes;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class LoginParamsDto {
 
   String responseType;
