@@ -1,6 +1,6 @@
 package de.zwisler.ada.auth.service;
 
-import de.zwisler.ada.auth.api.LoginParamsDto;
+import de.zwisler.ada.auth.api.dto.LoginParamsDto;
 import de.zwisler.ada.auth.config.AuthConfig;
 import de.zwisler.ada.auth.exceptions.InvalidRedirectException;
 import java.util.regex.Pattern;

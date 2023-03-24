@@ -3,29 +3,26 @@ package de.zwisler.ada.auth.service;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.hash.Hashing;
-import de.zwisler.ada.auth.api.LoginParamsDto;
+import de.zwisler.ada.auth.api.dto.LoginParamsDto;
 import de.zwisler.ada.auth.api.dto.LoginRequestDto;
 import de.zwisler.ada.auth.api.dto.ResponseTypes;
 import de.zwisler.ada.auth.api.dto.TokenResponse;
-import de.zwisler.ada.auth.domain.AccessTokenPayload;
-import de.zwisler.ada.auth.domain.AuthenticationRedirect;
-import de.zwisler.ada.auth.domain.AuthorizationCode;
-import de.zwisler.ada.auth.domain.IdTokenPayload;
-import de.zwisler.ada.auth.domain.RefreshTokenPayload;
+import de.zwisler.ada.auth.domain.*;
 import de.zwisler.ada.auth.exceptions.CodeVerifierException;
 import de.zwisler.ada.auth.exceptions.UnauthorizedException;
 import de.zwisler.ada.auth.persistence.UserRepository;
 import de.zwisler.ada.auth.persistence.entity.UserEntity;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.util.Pair;
+import org.springframework.stereotype.Service;
+
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.util.Pair;
-import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
@@ -59,7 +56,8 @@ public class AuthenticationService {
     }
     if (Objects.nonNull(username) && Objects.nonNull(password)) {
       log.debug("Verifying user {} by password", username);
-      UserEntity user = userRepository.findByUsername(username);
+      UserEntity user = userRepository.findByUsername(username)
+          .orElseThrow(UnauthorizedException::new);
       if (cryptoService.match(password, user.getPassword())) {
         return user;
       }
@@ -106,7 +104,8 @@ public class AuthenticationService {
     UserEntity user = verifyAuthentication(req.getUsername(), req.getPassword(), authCookie);
 
     if (params.getResponseType().equals(ResponseTypes.CODE.toString())) {
-      String code = this.createAuthorizationCode(user, params.getNonce(), params.getCodeChallenge());
+      String code = this.createAuthorizationCode(user, params.getNonce(),
+          params.getCodeChallenge());
       return AuthenticationRedirect.builder()
           .redirectUri(params.getRedirectUri())
           .state(params.getState())

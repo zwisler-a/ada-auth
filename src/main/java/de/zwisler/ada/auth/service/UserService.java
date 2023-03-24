@@ -1,6 +1,7 @@
 package de.zwisler.ada.auth.service;
 
 import de.zwisler.ada.auth.api.dto.UserDto;
+import de.zwisler.ada.auth.exceptions.UnauthorizedException;
 import de.zwisler.ada.auth.persistence.PermissionRepository;
 import de.zwisler.ada.auth.persistence.UserRepository;
 import de.zwisler.ada.auth.persistence.entity.UserEntity;
@@ -13,13 +14,18 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 @Service
 public class UserService {
+
   final UserRepository userRepository;
   final PermissionRepository permissionRepository;
   final CryptoService cryptoService;
 
   public boolean createUser(UserDto userDto) {
-    UserEntity entity = new UserEntity();
+    Optional<UserEntity> existing = userRepository.findByUsername(userDto.getUsername());
+    if (existing.isPresent()) {
+      throw new UnauthorizedException();
+    }
 
+    UserEntity entity = new UserEntity();
     entity.setUsername(userDto.getUsername());
     entity.setPassword(cryptoService.encode(userDto.getPassword()));
     entity.setPermissions(
