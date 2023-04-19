@@ -33,3 +33,11 @@ jobs:
         run: |
           docker image tag docker.io/library/ada-auth:0.0.1-SNAPSHOT zwisler/ada-auth:latest
           docker push zwisler/ada-auth:latest
+      - name: executing remote ssh commands using password
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.KEY }}
+          port: ${{ secrets.PORT }}
+          script: cd /srv/www/ && docker-compose up -d ada-auth

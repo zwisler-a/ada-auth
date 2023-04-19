@@ -15,6 +15,7 @@ spring:
 server:
   error:
     include-stacktrace: never
+  port: 8090
 auth:
   baseUrl: ${BASE_URL}
   authorizationEndpoint: "auth/login"
