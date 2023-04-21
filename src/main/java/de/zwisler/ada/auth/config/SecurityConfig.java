@@ -18,7 +18,7 @@ public class SecurityConfig {
 
   @Bean
   public SecurityFilterChain filterChain(HttpSecurity http, JwtDecoder decoder) throws Exception {
-    http.csrf().disable();
+    http.csrf().disable().cors();
     http.authorizeHttpRequests(
             (authz) -> authz
                 .requestMatchers("/swagger-ui/**").permitAll()
