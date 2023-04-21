@@ -22,3 +22,4 @@ auth:
   tokenEndpoint: "auth/token"
   jwksEndpoint: ".well-known/jwks.json"
   allowedRedirects: ${ALLOWED_REDIRECTS}
+  keyPath: "./keys/"
