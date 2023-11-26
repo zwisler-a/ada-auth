@@ -1,5 +1,7 @@
 package de.zwisler.ada.auth.service;
 
+import static java.util.Objects.nonNull;
+
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.hash.Hashing;
@@ -48,12 +50,12 @@ public class AuthenticationService {
   }
 
   UserEntity verifyAuthentication(String username, String password, String accessToken) {
-    if (Objects.nonNull(accessToken)) {
+    if (nonNull(accessToken)) {
       log.debug("Verifying user {} by access_token", username);
       UUID userId = tokenService.validateAccessToken(accessToken);
       return userRepository.findById(userId).orElseThrow(UnauthorizedException::new);
     }
-    if (Objects.nonNull(username) && Objects.nonNull(password)) {
+    if (nonNull(username) && nonNull(password)) {
       log.debug("Verifying user {} by password", username);
       UserEntity user = userRepository.findByUsername(username)
           .orElseThrow(UnauthorizedException::new);
@@ -67,15 +69,17 @@ public class AuthenticationService {
   public Optional<TokenResponse> authenticateWithCode(String code, String codeVerifier) {
     AuthorizationCode user = authorizationCodes.getIfPresent(code);
     log.debug("Authenticate with code {}", code);
-    if (Objects.nonNull(user)) {
+    if (nonNull(user)) {
       log.debug("Generating access token for {}", user.userId());
       authorizationCodes.invalidate(code);
-      String calcChallenge = Base64.getUrlEncoder().encodeToString(
-          Hashing.sha256().hashString(codeVerifier, StandardCharsets.UTF_8).asBytes()
-      );
-      log.debug("{} {}", codeVerifier, calcChallenge);
-      if (user.codeChallenge().equals(calcChallenge)) {
-        throw new CodeVerifierException();
+      if (nonNull(user.codeChallenge())) {
+        String calcChallenge = Base64.getUrlEncoder().encodeToString(
+            Hashing.sha256().hashString(codeVerifier, StandardCharsets.UTF_8).asBytes()
+        );
+        log.debug("{} {}", codeVerifier, calcChallenge);
+        if (user.codeChallenge().equals(calcChallenge)) {
+          throw new CodeVerifierException();
+        }
       }
       return generateTokens(user.userId(), user.nonce());
     }
