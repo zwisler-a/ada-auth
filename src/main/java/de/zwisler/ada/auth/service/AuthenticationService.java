@@ -34,7 +34,7 @@ public class AuthenticationService {
   final CryptoService cryptoService;
   final TokenService tokenService;
   Cache<String, AuthorizationCode> authorizationCodes = CacheBuilder.newBuilder()
-      .expireAfterWrite(1, TimeUnit.MINUTES)
+      .expireAfterWrite(5, TimeUnit.MINUTES)
       .expireAfterAccess(1, TimeUnit.SECONDS)
       .build();
 
