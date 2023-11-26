@@ -1,28 +1,31 @@
 package de.zwisler.ada.auth.service;
 
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.hash.Hashing;
 import de.zwisler.ada.auth.api.dto.LoginParamsDto;
 import de.zwisler.ada.auth.api.dto.LoginRequestDto;
 import de.zwisler.ada.auth.api.dto.ResponseTypes;
 import de.zwisler.ada.auth.api.dto.TokenResponse;
-import de.zwisler.ada.auth.domain.*;
+import de.zwisler.ada.auth.domain.AccessTokenPayload;
+import de.zwisler.ada.auth.domain.AuthenticationRedirect;
+import de.zwisler.ada.auth.domain.AuthorizationCode;
+import de.zwisler.ada.auth.domain.IdTokenPayload;
+import de.zwisler.ada.auth.domain.RefreshTokenPayload;
 import de.zwisler.ada.auth.exceptions.CodeVerifierException;
 import de.zwisler.ada.auth.exceptions.UnauthorizedException;
 import de.zwisler.ada.auth.persistence.UserRepository;
 import de.zwisler.ada.auth.persistence.entity.UserEntity;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.util.Pair;
-import org.springframework.stereotype.Service;
-
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.util.Pair;
+import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
@@ -33,9 +36,9 @@ public class AuthenticationService {
   final UserService userService;
   final CryptoService cryptoService;
   final TokenService tokenService;
-  Cache<String, AuthorizationCode> authorizationCodes = CacheBuilder.newBuilder()
+  Cache<String, AuthorizationCode> authorizationCodes = Caffeine.newBuilder()
+      .maximumSize(10_000)
       .expireAfterWrite(5, TimeUnit.MINUTES)
-      .expireAfterAccess(1, TimeUnit.SECONDS)
       .build();
 
   public String createAuthorizationCode(

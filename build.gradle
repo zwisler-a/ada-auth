@@ -28,6 +28,7 @@ dependencies {
     implementation 'org.springframework.security:spring-security-crypto:5.7.3'
     implementation 'org.bouncycastle:bcprov-jdk15on:1.69'
     implementation 'com.google.guava:guava:31.1-jre'
+    implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")
     implementation 'com.nimbusds:nimbus-jose-jwt:9.30.2'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
